@@ -45,10 +45,14 @@
 #include <signal.h>
 #include <time.h>
 #include <libgen.h>
+#include <pthread.h>
+
 
 void *l23_ctx = NULL;
 struct llist_head ms_list;
 static char *gsmtap_ip = 0;
+static char *fbts_ip = "127.0.0.1";
+static uint16_t fbts_port = 9999;
 static const char *custom_cfg_file = NULL;
 struct gsmtap_inst *gsmtap_inst = NULL;
 char *config_dir = NULL;
@@ -107,10 +111,12 @@ static int handle_options(int argc, char **argv)
 			/* DEPRECATED options, to be removed */
 			{"vty-ip", 1, 0, 'u'},
 			{"vty-port", 1, 0, 'v'},
+			{"fbts-ip", 1, 0, 't'},
+			{"fbts-port", 1, 0, 'p'},
 			{0, 0, 0, 0},
 		};
 
-		c = getopt_long(argc, argv, "hi:u:c:v:d:Dm",
+		c = getopt_long(argc, argv, "hi:u:c:v:d:t:p:Dm",
 				long_options, &option_index);
 		if (c == -1)
 			break;
@@ -121,8 +127,11 @@ static int handle_options(int argc, char **argv)
 			print_help();
 			exit(0);
 			break;
-		case 'i':
-			gsmtap_ip = optarg;
+		case 't':
+			fbts_ip = optarg;
+			break;
+		case 'p':
+			fbts_port = strtoul(optarg,0,10);
 			break;
 		case 'c':
 			custom_cfg_file = optarg;
@@ -198,11 +207,57 @@ void sighandler(int sigset)
 	}
 }
 
+void* handler_fbts_message(int* quit){
+
+	int sockfd; 
+    char buffer[2048]; 
+    char *hello = "Hello from client"; 
+    struct sockaddr_in     servaddr; 
+    
+    // Creating socket file descriptor 
+    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        perror("socket creation failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+    
+    memset(&servaddr, 0, sizeof(servaddr)); 
+        
+    // Filling server information 
+    servaddr.sin_family = AF_INET; 
+    servaddr.sin_port = htons(fbts_port); 
+	servaddr.sin_addr.s_addr = inet_addr(fbts_ip);
+        
+    int n, len; 
+        
+    sendto(sockfd, (const char *)hello, strlen(hello), 
+        MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
+            sizeof(servaddr)); 
+    printf("Hello message sent.\n"); 
+            
+    n = recvfrom(sockfd, (char *)buffer, MAXLINE,  
+                MSG_WAITALL, (struct sockaddr *) &servaddr, 
+                &len); 
+    buffer[n] = '\0'; 
+    printf("Server : %s\n", buffer); 
+    
+    close(sockfd); 
+    return 0; 
+while (1) {
+		
+		if (*quit)
+			break;
+		osmo_select_main(0);
+	}
+  pthread_exit(NULL);
+}
+
+
 int main(int argc, char **argv)
 {
 	char *config_file;
 	int quit = 0;
 	int rc;
+	pthread_t id;
 
 	printf("%s\n", openbsc_copyright);
 
@@ -222,6 +277,10 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Error in command line options. Exiting.\n");
 		return 1;
 	}
+
+	pthread_create(&id, NULL, handler_fbts_message, &quit);
+		
+	int* ptr;
 
 	if (gsmtap_ip) {
 		gsmtap_inst = gsmtap_source_init(gsmtap_ip, GSMTAP_UDP_PORT, 1);
@@ -282,7 +341,9 @@ int main(int argc, char **argv)
 
 	l23_app_exit();
 	log_fini();
-
+	
+	pthread_join(id, (void**)&ptr);
+	
 	talloc_free(config_file);
 	talloc_free(config_dir);
 	talloc_report_full(l23_ctx, stderr);
