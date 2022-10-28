@@ -1,6 +1,8 @@
 #ifndef osmocom_data_h
 #define osmocom_data_h
 
+#include <arpa/inet.h>
+
 #include <osmocom/core/select.h>
 #include <osmocom/gsm/gsm_utils.h>
 #include <osmocom/core/write_queue.h>
@@ -69,6 +71,7 @@ enum {
 	MS_SHUTDOWN_COMPL = 3,
 };
 
+
 /* One Mobilestation for osmocom */
 struct osmocom_ms {
 	struct llist_head entity;
@@ -97,6 +100,11 @@ struct osmocom_ms {
 	void *lua_state;
 	int lua_cb_ref;
 	char *lua_script;
+	int fbts_fd;
+	uint32_t session_id;
+	uint8_t pnc_state;
+	struct sockaddr_in     servaddr; 
+	
 };
 
 enum osmobb_sig_subsys {

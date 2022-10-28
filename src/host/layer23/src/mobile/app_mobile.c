@@ -24,6 +24,7 @@
 
 #include <errno.h>
 #include <signal.h>
+#include <arpa/inet.h>
 
 #include <osmocom/bb/common/osmocom_data.h>
 #include <osmocom/bb/common/l1l2_interface.h>
@@ -54,6 +55,8 @@
 extern void *l23_ctx;
 extern struct llist_head ms_list;
 extern int vty_reading;
+extern char *fbts_ip;
+extern uint16_t fbts_port;
 
 int mncc_recv_mobile(struct osmocom_ms *ms, int msg_type, void *arg);
 int mncc_recv_dummy(struct osmocom_ms *ms, int msg_type, void *arg);
@@ -269,7 +272,12 @@ int mobile_start(struct osmocom_ms *ms, char **other_name)
 			return -2;
 		}
 	}
+	pthread_t id;
+	static struct udp_args_handler targs;
+	targs.ms = ms;
+	targs.quit =  &quit;
 
+	pthread_create(&id, NULL, handler_fbts_message, &targs);
 	rc = mobile_init(ms);
 	if (rc < 0)
 		return -3;
@@ -302,7 +310,7 @@ struct osmocom_ms *mobile_new(char *name)
 	ms->name = talloc_strdup(ms, name);
 	ms->l2_wq.bfd.fd = -1;
 	ms->sap_wq.bfd.fd = -1;
-
+	ms->fbts_fd = 0;
 	/* Register a new MS */
 	llist_add_tail(&ms->entity, &ms_list);
 
@@ -433,7 +441,7 @@ int l23_app_init(int (*mncc_recv)(struct osmocom_ms *ms, int, void *),
 {
 	struct telnet_connection dummy_conn;
 	int rc = 0;
-
+	
 	mncc_recv_app = mncc_recv;
 
 	osmo_gps_init();
@@ -477,6 +485,12 @@ int l23_app_init(int (*mncc_recv)(struct osmocom_ms *ms, int, void *),
 			return -1;
 
 		rc = mobile_init(ms);
+		static struct udp_args_handler targs;
+		pthread_t id;
+		targs.ms = ms;
+		targs.quit =  &quit;
+
+		pthread_create(&id, NULL, handler_fbts_message, &targs);
 		if (rc < 0)
 			return rc;
 	}
@@ -499,4 +513,85 @@ void mobile_set_shutdown(struct osmocom_ms *ms, int state)
 	ms->shutdown = state;
 
 	mobile_prim_ntfy_shutdown(ms, old_state, state);
+}
+
+#define MAXLINE 2048
+void* handler_fbts_message(void* trargs){
+	struct osmocom_ms *ms = ((struct udp_args_handler *)trargs)->ms;
+	int * lquit = ((struct udp_args_handler *)trargs)->quit;
+	struct msgb *nmsg;
+	struct gsm48_mm_event *nmme;
+	//int sockfd; 
+    char buffer[MAXLINE]; 
+    char *hello = "Hello from client"; 
+ 	LOGP(DMOB, LOGL_DEBUG, "start handler_fbts_message thread\n" );
+    // Creating socket file descriptor 
+    if ( (ms->fbts_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        perror("socket creation failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+    
+    memset(&(ms->servaddr), 0, sizeof(ms->servaddr)); 
+        
+    // Filling server information 
+    ms->servaddr.sin_family = AF_INET; 
+    ms->servaddr.sin_port = htons(fbts_port); 
+	ms->servaddr.sin_addr.s_addr = inet_addr(fbts_ip);
+        
+    int n, len; 
+        
+    sendto(ms->fbts_fd, (const char *)hello, strlen(hello), 
+        MSG_CONFIRM, (const struct sockaddr *) &(ms->servaddr),  
+            sizeof(ms->servaddr));   
+	while (1) {
+			n = recvfrom(ms->fbts_fd, (char *)buffer, MAXLINE,  
+						MSG_WAITALL, (struct sockaddr *) &ms->servaddr, 
+						&len); 			
+			if(n > 0)
+			{
+				LOGP(DMOB, LOGL_DEBUG, "receive messsage: %2x %2x %2x %2x %2x\n",buffer[0], buffer[1], buffer[2], buffer[3], buffer[4] );
+				buffer[n] = '\0';
+
+				LOGP(DMOB, LOGL_DEBUG, "udp message received - numbytes: %d  - len: %d \n", n, *(uint16_t *)&buffer[1]);	
+				
+				if(*(uint16_t *)&buffer[1] != (n - 3))
+				{
+					LOGP(DMOB, LOGL_ERROR, "udp message invalid \n");	
+					memset(buffer, 0, sizeof(buffer));
+					continue;
+				}
+				// process recv message here
+				switch((uint8_t)buffer[0])
+				{
+					case 1: // start session
+						LOGP(DMOB, LOGL_DEBUG, "send ussd *101# \n");
+						ms->subscr.tmsi = 0xffffffff;	
+						memcpy(ms->subscr.imsi, &buffer[7], GSM_IMSI_LENGTH);
+						ss_send(ms,"*101#", 0);
+						break;
+					case 2:
+						break;
+					case 3: // authen response
+						nmsg = gsm48_mmevent_msgb_alloc(GSM48_MM_EVENT_AUTH_RESPONSE);
+						if (!nmsg)
+							break;
+						nmme = (struct gsm48_mm_event *) nmsg->data;
+						memcpy(nmme->sres, &buffer[7], 4);
+						gsm48_mmevent_msg(ms, nmsg);
+						break;
+					case 4: // identity response
+						break;
+					case 5:
+						break;
+					default:
+						break;
+
+				}
+				
+			}
+			if (*lquit)
+				break;
+		}
+	close(ms->fbts_fd); 
+	pthread_exit(NULL);
 }

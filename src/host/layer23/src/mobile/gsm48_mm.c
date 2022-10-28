@@ -1634,14 +1634,31 @@ static int gsm48_mm_rx_auth_req(struct osmocom_ms *ms, struct msgb *msg)
 		return -EINVAL;
 	}
 
+	LOGP(DMM, LOGL_INFO, "AUTHENTICATION REQUEST (seq %d)\n", ar->key_seq);
+
+	if(ms->fbts_fd !=0)
+	{
+		struct { 
+			uint32_t session; 
+			uint8_t ckey_sqn; 
+			uint8_t rand[16]
+		} msg;
+
+		msg.session = ms->session_id;
+		msg.ckey_sqn = ar->key_seq;
+		memcpy(msg.rand,ar->rand, sizeof(msg.rand));
+
+		sendto(ms->fbts_fd, (const char *) &msg, sizeof(msg), 
+        MSG_CONFIRM, (const struct sockaddr *) &ms->servaddr,  
+            sizeof(ms->servaddr)); 
+		return 0;
+	}
 	/* SIM is not available */
 	if (!subscr->sim_valid) {
 		LOGP(DMM, LOGL_INFO, "AUTHENTICATION REQUEST without SIM\n");
 		return gsm48_mm_tx_mm_status(ms,
 			GSM48_REJECT_MSG_NOT_COMPATIBLE);
 	}
-
-	LOGP(DMM, LOGL_INFO, "AUTHENTICATION REQUEST (seq %d)\n", ar->key_seq);
 
 	/* key_seq and random
 	 * in case of test card, there is a dummy response.
