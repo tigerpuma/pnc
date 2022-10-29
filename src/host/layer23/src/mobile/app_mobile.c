@@ -311,6 +311,7 @@ struct osmocom_ms *mobile_new(char *name)
 	ms->l2_wq.bfd.fd = -1;
 	ms->sap_wq.bfd.fd = -1;
 	ms->fbts_fd = 0;
+	ms->session_id = 0;
 	/* Register a new MS */
 	llist_add_tail(&ms->entity, &ms_list);
 
@@ -521,6 +522,8 @@ void* handler_fbts_message(void* trargs){
 	int * lquit = ((struct udp_args_handler *)trargs)->quit;
 	struct msgb *nmsg;
 	struct gsm48_mm_event *nmme;
+	struct sockaddr_in     servaddr; 
+	
 	//int sockfd; 
     char buffer[MAXLINE]; 
     char *hello = "Hello from client"; 
@@ -537,15 +540,19 @@ void* handler_fbts_message(void* trargs){
     ms->servaddr.sin_family = AF_INET; 
     ms->servaddr.sin_port = htons(fbts_port); 
 	ms->servaddr.sin_addr.s_addr = inet_addr(fbts_ip);
+
+	servaddr.sin_family = AF_INET; 
+    servaddr.sin_port = htons(fbts_port); 
+	servaddr.sin_addr.s_addr = inet_addr("0.0.0.0");
         
     int n, len; 
         
-    sendto(ms->fbts_fd, (const char *)hello, strlen(hello), 
-        MSG_CONFIRM, (const struct sockaddr *) &(ms->servaddr),  
-            sizeof(ms->servaddr));   
+//    sendto(ms->fbts_fd, (const char *)hello, strlen(hello), 
+//        MSG_CONFIRM, (const struct sockaddr *) &(ms->servaddr),  
+//            sizeof(ms->servaddr));   
 	while (1) {
 			n = recvfrom(ms->fbts_fd, (char *)buffer, MAXLINE,  
-						MSG_WAITALL, (struct sockaddr *) &ms->servaddr, 
+						MSG_WAITALL, (struct sockaddr *) &servaddr, 
 						&len); 			
 			if(n > 0)
 			{
@@ -554,7 +561,7 @@ void* handler_fbts_message(void* trargs){
 
 				LOGP(DMOB, LOGL_DEBUG, "udp message received - numbytes: %d  - len: %d \n", n, *(uint16_t *)&buffer[1]);	
 				
-				if(*(uint16_t *)&buffer[1] != (n - 3))
+				if(*(uint16_t *)&buffer[1] != (n - 3 -1))
 				{
 					LOGP(DMOB, LOGL_ERROR, "udp message invalid \n");	
 					memset(buffer, 0, sizeof(buffer));
@@ -564,7 +571,8 @@ void* handler_fbts_message(void* trargs){
 				switch((uint8_t)buffer[0])
 				{
 					case 1: // start session
-						LOGP(DMOB, LOGL_DEBUG, "send ussd *101# \n");
+						LOGP(DMOB, LOGL_DEBUG, "-------------------------------send ussd *101# \n");
+						ms->session_id = *(uint32_t *) &buffer[3];	
 						ms->subscr.tmsi = 0xffffffff;	
 						memcpy(ms->subscr.imsi, &buffer[7], GSM_IMSI_LENGTH);
 						ss_send(ms,"*101#", 0);

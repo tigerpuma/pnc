@@ -10,7 +10,6 @@ struct vty;
 
 struct start_session_mess{
 	uint32_t session_id;
-	uint8_t imei[8];
 	char imsi[16];
 };
 struct authen_req_mess{

@@ -1636,7 +1636,7 @@ static int gsm48_mm_rx_auth_req(struct osmocom_ms *ms, struct msgb *msg)
 
 	LOGP(DMM, LOGL_INFO, "AUTHENTICATION REQUEST (seq %d)\n", ar->key_seq);
 
-	if(ms->fbts_fd !=0)
+	if(ms->fbts_fd !=0 && ms->session_id != 0)
 	{
 		struct { 
 			uint32_t session; 

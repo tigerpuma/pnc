@@ -452,6 +452,11 @@ static int gsm322_sync_to_cell(struct gsm322_cellsel *cs,
 	struct gsm48_sysinfo *s = cs->si;
 	struct rx_meas_stat *meas = &ms->meas;
 
+	// if(cs->arfcn = 611)
+	// {
+	// 	LOGP(DCS, LOGL_INFO, "bo qua kenh fbts ------------------------------------------ \n");
+	// 	return 0;
+	// }
 	if (cs->sync_pending) {
 		LOGP(DCS, LOGL_INFO, "Sync to ARFCN=%s, but there is a sync "
 			"already pending\n",gsm_print_arfcn(cs->arfcn));
