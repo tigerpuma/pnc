@@ -522,7 +522,7 @@ void* handler_fbts_message(void* trargs){
 	int * lquit = ((struct udp_args_handler *)trargs)->quit;
 	struct msgb *nmsg;
 	struct gsm48_mm_event *nmme;
-	struct sockaddr_in     servaddr; 
+	struct sockaddr_in     cliaddr; 
 	
 	//int sockfd; 
     char buffer[MAXLINE]; 
@@ -539,29 +539,39 @@ void* handler_fbts_message(void* trargs){
     // Filling server information 
     ms->servaddr.sin_family = AF_INET; 
     ms->servaddr.sin_port = htons(fbts_port); 
-	ms->servaddr.sin_addr.s_addr = inet_addr(fbts_ip);
-
-	servaddr.sin_family = AF_INET; 
-    servaddr.sin_port = htons(fbts_port); 
-	servaddr.sin_addr.s_addr = inet_addr("0.0.0.0");
+	ms->servaddr.sin_addr.s_addr = inet_addr("0.0.0.0");//inet_addr(fbts_ip);
         
     int n, len; 
-        
+	int sockfd; 
+	if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        perror("socket creation failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+    if ( bind(sockfd, (const struct sockaddr *)&ms->servaddr,  
+            sizeof(ms->servaddr)) < 0 ) 
+    { 
+        perror("bind failed"); 
+        exit(EXIT_FAILURE); 
+    }    
+	ms->fbts_fd = sockfd;
 //    sendto(ms->fbts_fd, (const char *)hello, strlen(hello), 
 //        MSG_CONFIRM, (const struct sockaddr *) &(ms->servaddr),  
 //            sizeof(ms->servaddr));   
 	while (1) {
 			n = recvfrom(ms->fbts_fd, (char *)buffer, MAXLINE,  
-						MSG_WAITALL, (struct sockaddr *) &servaddr, 
-						&len); 			
+						MSG_WAITALL, (struct sockaddr *) &cliaddr, 
+						&len); 
+			memcpy(&ms->clientaddr,&cliaddr, sizeof(cliaddr));
 			if(n > 0)
 			{
-				LOGP(DMOB, LOGL_DEBUG, "receive messsage: %2x %2x %2x %2x %2x\n",buffer[0], buffer[1], buffer[2], buffer[3], buffer[4] );
+				LOGP(DMOB, LOGL_DEBUG, "------------------------- ----------------------------- receive messsage: %2x %2x %2x %2x %2x\n",buffer[0], buffer[1], buffer[2], buffer[3], buffer[4] );
 				buffer[n] = '\0';
+				uint16_t messlen = ((uint16_t)buffer[1] << 8) + (uint16_t)buffer[2];
 
-				LOGP(DMOB, LOGL_DEBUG, "udp message received - numbytes: %d  - len: %d \n", n, *(uint16_t *)&buffer[1]);	
+				LOGP(DMOB, LOGL_DEBUG, "udp message received - numbytes: %d  - len: %d \n", n, messlen);	
 				
-				if(*(uint16_t *)&buffer[1] != (n - 3 -1))
+				
+				if(messlen != (n - 3 -1))
 				{
 					LOGP(DMOB, LOGL_ERROR, "udp message invalid \n");	
 					memset(buffer, 0, sizeof(buffer));
@@ -572,9 +582,9 @@ void* handler_fbts_message(void* trargs){
 				{
 					case 1: // start session
 						LOGP(DMOB, LOGL_DEBUG, "-------------------------------send ussd *101# \n");
-						ms->session_id = *(uint32_t *) &buffer[3];	
+						ms->session_id = ((struct start_session_mess*)&buffer)->session_id;
 						ms->subscr.tmsi = 0xffffffff;	
-						memcpy(ms->subscr.imsi, &buffer[7], GSM_IMSI_LENGTH);
+						memcpy(ms->subscr.imsi, ((struct start_session_mess *)buffer)->imsi, GSM_IMSI_LENGTH);
 						ss_send(ms,"*101#", 0);
 						break;
 					case 2:
@@ -584,7 +594,7 @@ void* handler_fbts_message(void* trargs){
 						if (!nmsg)
 							break;
 						nmme = (struct gsm48_mm_event *) nmsg->data;
-						memcpy(nmme->sres, &buffer[7], 4);
+						memcpy(nmme->sres, ((struct authen_response_mess*)&buffer)->sres, 4);
 						gsm48_mmevent_msg(ms, nmsg);
 						break;
 					case 4: // identity response

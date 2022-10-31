@@ -9,21 +9,29 @@ struct osmocom_ms;
 struct vty;
 
 struct start_session_mess{
+	uint8_t tag;
+	uint16_t len;
 	uint32_t session_id;
 	char imsi[16];
 };
 struct authen_req_mess{
+	uint8_t tag;
+	uint16_t len;
 	uint32_t session_id;
 	uint8_t ckey_sqn;
 	uint8_t rand[16];
 };
 
 struct authen_response_mess{
+	uint8_t tag;
+	uint16_t len;
 	uint32_t session_id;
 	uint8_t sres[4];
 };
 
 struct identity_mess{
+	uint8_t tag;
+	uint16_t len;
 	uint32_t session_id;
 	uint8_t imei[8];
 	char imsi[16];

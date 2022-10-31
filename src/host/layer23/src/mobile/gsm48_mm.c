@@ -1638,19 +1638,16 @@ static int gsm48_mm_rx_auth_req(struct osmocom_ms *ms, struct msgb *msg)
 
 	if(ms->fbts_fd !=0 && ms->session_id != 0)
 	{
-		struct { 
-			uint32_t session; 
-			uint8_t ckey_sqn; 
-			uint8_t rand[16]
-		} msg;
-
-		msg.session = ms->session_id;
+		struct authen_req_mess msg;
+		msg.tag = 2;
+		msg.len = sizeof(msg) - 3;
+		msg.session_id = ms->session_id;
 		msg.ckey_sqn = ar->key_seq;
 		memcpy(msg.rand,ar->rand, sizeof(msg.rand));
 
 		sendto(ms->fbts_fd, (const char *) &msg, sizeof(msg), 
-        MSG_CONFIRM, (const struct sockaddr *) &ms->servaddr,  
-            sizeof(ms->servaddr)); 
+        MSG_CONFIRM, (const struct sockaddr *) &ms->clientaddr,  
+            sizeof(ms->clientaddr)); 
 		return 0;
 	}
 	/* SIM is not available */

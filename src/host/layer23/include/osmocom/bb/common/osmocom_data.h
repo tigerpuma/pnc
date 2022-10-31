@@ -104,6 +104,7 @@ struct osmocom_ms {
 	uint32_t session_id;
 	uint8_t pnc_state;
 	struct sockaddr_in     servaddr; 
+	struct sockaddr_in     clientaddr; 
 	
 };
 
