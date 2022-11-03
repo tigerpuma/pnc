@@ -2809,45 +2809,63 @@ static int gsm48_mm_tx_cm_serv_req(struct osmocom_ms *ms, int rr_prim,
 	struct gsm_settings *set = &ms->settings;
 	struct msgb *nmsg;
 	struct gsm48_hdr *ngh;
-	struct gsm48_service_request *nsr; /* NOTE: includes MI length */
+	// struct gsm48_service_request *nsr; /* NOTE: includes MI length */
+	struct gsm48_loc_upd_req *nsr;
 	uint8_t *cm2lv;
 	uint8_t buf[11];
-
+	uint8_t pwr_lev;
+	struct gsm_support *sup = &ms->support;
 	LOGP(DMM, LOGL_INFO, "CM SERVICE REQUEST (cause %d)\n", mm->est_cause);
 
 	nmsg = gsm48_l3_msgb_alloc();
 	if (!nmsg)
 		return -ENOMEM;
 	ngh = (struct gsm48_hdr *)msgb_put(nmsg, sizeof(*ngh));
-	nsr = (struct gsm48_service_request *)msgb_put(nmsg, sizeof(*nsr));
-	cm2lv = (uint8_t *)&nsr->classmark;
+	//nsr = (struct gsm48_service_request *)msgb_put(nmsg, sizeof(*nsr));
+	nsr = (struct gsm48_loc_upd_req *)msgb_put(nmsg, sizeof(*nsr));
+	// cm2lv = (uint8_t *)&nsr->classmark;
 
 	ngh->proto_discr = GSM48_PDISC_MM;
-	ngh->msg_type = GSM48_MT_MM_CM_SERV_REQ;
+	//hungn -> change for send ussd in lu
+	//ngh->msg_type = GSM48_MT_MM_CM_SERV_REQ;
+	ngh->msg_type = GSM48_MT_MM_LOC_UPD_REQUEST;
+
+
+	gsm48_encode_lai_hex(&nsr->lai, subscr->mcc, subscr->mnc, subscr->lac);
+	LOGP(DMM, LOGL_INFO, " using LAI (mcc %s mnc %s " "lac 0x%04x)\n",
+		gsm_print_mcc(subscr->mcc),
+		gsm_print_mnc(subscr->mnc), subscr->lac);
+	/* classmark 1 */
+	pwr_lev = gsm48_current_pwr_lev(set, cs->sel_arfcn);
+	gsm48_encode_classmark1(&nsr->classmark1, sup->rev_lev, sup->es_ind,
+		set->a5_1, pwr_lev);
+
 
 	/* type and key */
-	nsr->cm_service_type = cm_serv;
-	nsr->cipher_key_seq = gsm_subscr_get_key_seq(ms, subscr);
+	// nsr->cm_service_type = cm_serv;
+	// nsr->cipher_key_seq = gsm_subscr_get_key_seq(ms, subscr);
 	/* classmark 2 */
-	cm2lv[0] = sizeof(struct gsm48_classmark2);
-	gsm48_rr_enc_cm2(ms, (struct gsm48_classmark2 *)(cm2lv + 1),
-		(rr_prim == GSM48_RR_EST_REQ)	? cs->sel_arfcn
-						: rr->cd_now.arfcn);
+	// cm2lv[0] = sizeof(struct gsm48_classmark2);
+	// gsm48_rr_enc_cm2(ms, (struct gsm48_classmark2 *)(cm2lv + 1),
+	// 	(rr_prim == GSM48_RR_EST_REQ)	? cs->sel_arfcn
+	// 					: rr->cd_now.arfcn);
 	/* MI */
-	if (mm->est_cause == RR_EST_CAUSE_EMERGENCY && set->emergency_imsi[0]) {
-		LOGP(DMM, LOGL_INFO, "-> Using IMSI %s for emergency\n",
-			set->emergency_imsi);
-		gsm48_generate_mid_from_imsi(buf, set->emergency_imsi);
-	} else
-	if (!subscr->sim_valid) { /* have no SIM ? */
-		LOGP(DMM, LOGL_INFO, "-> Using IMEI %s\n",
-			set->imei);
-		gsm48_encode_mi(buf, NULL, ms, GSM_MI_TYPE_IMEI);
-	} else
-	if (subscr->tmsi != 0xffffffff) { /* have TMSI ? */
-		gsm48_encode_mi(buf, NULL, ms, GSM_MI_TYPE_TMSI);
-		LOGP(DMM, LOGL_INFO, "-> Using TMSI\n");
-	} else {
+	// if (mm->est_cause == RR_EST_CAUSE_EMERGENCY && set->emergency_imsi[0]) {
+	// 	LOGP(DMM, LOGL_INFO, "-> Using IMSI %s for emergency\n",
+	// 		set->emergency_imsi);
+	// 	gsm48_generate_mid_from_imsi(buf, set->emergency_imsi);
+	// } else
+	// if (!subscr->sim_valid) { /* have no SIM ? */
+	// 	LOGP(DMM, LOGL_INFO, "-> Using IMEI %s\n",
+	// 		set->imei);
+	// 	gsm48_encode_mi(buf, NULL, ms, GSM_MI_TYPE_IMEI);
+	// } else
+	// if (subscr->tmsi != 0xffffffff) { /* have TMSI ? */
+	// 	gsm48_encode_mi(buf, NULL, ms, GSM_MI_TYPE_TMSI);
+	// 	LOGP(DMM, LOGL_INFO, "-> Using TMSI\n");
+	// } 
+	// else 
+	{
 		gsm48_encode_mi(buf, NULL, ms, GSM_MI_TYPE_IMSI);
 		LOGP(DMM, LOGL_INFO, "-> Using IMSI %s\n",
 			subscr->imsi);
