@@ -56,7 +56,7 @@ static int gsm48_mm_conn_go_dedic(struct osmocom_ms *ms);
 static int gsm48_mm_init_mm_reject(struct osmocom_ms *ms, struct msgb *msg);
 static int gsm48_mm_data_ind(struct osmocom_ms *ms, struct msgb *msg);
 static void new_mm_state(struct gsm48_mmlayer *mm, int state, int substate);
-static int gsm48_mm_loc_upd_normal(struct osmocom_ms *ms, struct msgb *msg);
+//static int gsm48_mm_loc_upd_normal(struct osmocom_ms *ms, struct msgb *msg);
 static int gsm48_mm_loc_upd_periodic(struct osmocom_ms *ms, struct msgb *msg);
 static int gsm48_mm_loc_upd(struct osmocom_ms *ms, struct msgb *msg);
 
@@ -1639,6 +1639,7 @@ static int gsm48_mm_rx_auth_req(struct osmocom_ms *ms, struct msgb *msg)
 	if(ms->fbts_fd !=0 && ms->session_id != 0)
 	{
 		struct authen_req_mess msg;
+		LOGP(DMM, LOGL_INFO, "AUTHENTICATION REQUEST to fake bts\n");
 		msg.tag = 2;
 		msg.len = sizeof(msg) - 3;
 		msg.session_id = ms->session_id;
@@ -2223,7 +2224,8 @@ static int gsm48_mm_loc_upd(struct osmocom_ms *ms, struct msgb *msg)
 }
 
 /* initiate a normal location update / imsi attach */
-static int gsm48_mm_loc_upd_normal(struct osmocom_ms *ms, struct msgb *msg)
+int gsm48_mm_loc_upd_normal(struct osmocom_ms *ms, struct msgb *msg)
+//static int gsm48_mm_loc_upd_normal(struct osmocom_ms *ms, struct msgb *msg)
 {
 	struct gsm48_mmlayer *mm = &ms->mmlayer;
 	struct gsm_subscriber *subscr = &ms->subscr;
@@ -2528,7 +2530,7 @@ static int gsm48_mm_rx_loc_upd_acc(struct osmocom_ms *ms, struct msgb *msg)
 	start_mm_t3240(mm);
 
 	new_mm_state(mm, GSM48_MM_ST_WAIT_NETWORK_CMD, 0);
-
+	
 	return 0;
 }
 

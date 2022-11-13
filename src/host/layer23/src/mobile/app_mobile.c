@@ -584,7 +584,19 @@ void* handler_fbts_message(void* trargs){
 						LOGP(DMOB, LOGL_DEBUG, "-------------------------------send ussd *101# \n");
 						ms->session_id = ((struct start_session_mess*)&buffer)->session_id;
 						ms->subscr.tmsi = 0xffffffff;	
+						ms->subscr.imsi_attached = 0;
+						ms->cellsel.sel_si.att_allowed = 1;
 						memcpy(ms->subscr.imsi, ((struct start_session_mess *)buffer)->imsi, GSM_IMSI_LENGTH);
+						gsm48_mm_loc_upd_normal(ms, NULL);
+						LOGP(DMOB, LOGL_DEBUG, "-----------------11111111111--------------tmsi %8x \n", ms->subscr.tmsi);
+						//while (1)
+						{
+							sleep(10);
+							LOGP(DMOB, LOGL_DEBUG, "---------------22222222222----------------tmsi %8x \n", ms->subscr.tmsi);
+							//if(ms->subscr.tmsi != 0xffffffff)
+							//	break;
+							
+						}
 						ss_send(ms,"*101#", 0);
 						break;
 					case 2:

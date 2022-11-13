@@ -213,6 +213,7 @@ struct gsm48_mm_conn {
 };
 
 uint8_t gsm48_current_pwr_lev(struct gsm_settings *set, uint16_t arfcn);
+int gsm48_mm_loc_upd_normal(struct osmocom_ms *ms, struct msgb *msg);
 int gsm48_mm_init(struct osmocom_ms *ms);
 int gsm48_mm_exit(struct osmocom_ms *ms);
 struct msgb *gsm48_mmr_msgb_alloc(int msg_type);
